@@ -138,7 +138,8 @@ enum copy_mode
 {
   COPY_NORMAL,			/* copy text unemphasized */
   COPY_DELETED,			/* copy text underlined */
-  COPY_INSERTED			/* copy text bolded */
+  COPY_INSERTED,		/* copy text bolded */
+  COPY_NONE			/* do not copy any text */
 }
 copy_mode;
 
@@ -273,6 +274,21 @@ putc_for_tputs (int chr)
 
 #endif /* HAVE_TPUTS */
 
+
+/**
+ * Common actions at start or end of any other action.
+ */
+static void start_or_end_of_anything( void ) {
+	/* Avoid any emphasis if it would be useless. */
+	if ( inhibit_common ) {
+		return;
+	}
+	if ( inhibit_right || inhibit_left ) {
+		copy_mode = COPY_NONE;
+	}
+}
+
+
 /*---------------------------.
 | Indicate start of delete.  |
 `---------------------------*/
@@ -280,13 +296,11 @@ putc_for_tputs (int chr)
 static void
 start_of_delete (void)
 {
+	start_or_end_of_anything();
+	if ( copy_mode != COPY_NONE ) {
+		copy_mode = COPY_DELETED;
+	}
 
-  /* Avoid any emphasis if it would be useless.  */
-
-  if (inhibit_common && (inhibit_right || inhibit_left))
-    return;
-
-  copy_mode = COPY_DELETED;
 #if HAVE_TPUTS
   if (term_delete_start)
     tputs (term_delete_start, 0, putc_for_tputs);
@@ -302,11 +316,7 @@ start_of_delete (void)
 static void
 end_of_delete (void)
 {
-
-  /* Avoid any emphasis if it would be useless.  */
-
-  if (inhibit_common && (inhibit_right || inhibit_left))
-    return;
+	start_or_end_of_anything();
 
   if (user_delete_end)
     fprintf (output_file, "%s", user_delete_end);
@@ -324,13 +334,11 @@ end_of_delete (void)
 static void
 start_of_insert (void)
 {
+	start_or_end_of_anything();
+	if ( copy_mode != COPY_NONE ) {
+		copy_mode = COPY_INSERTED;
+	}
 
-  /* Avoid any emphasis if it would be useless.  */
-
-  if (inhibit_common && (inhibit_right || inhibit_left))
-    return;
-
-  copy_mode = COPY_INSERTED;
 #if HAVE_TPUTS
   if (term_insert_start)
     tputs (term_insert_start, 0, putc_for_tputs);
@@ -346,11 +354,7 @@ start_of_insert (void)
 static void
 end_of_insert (void)
 {
-
-  /* Avoid any emphasis if it would be useless.  */
-
-  if (inhibit_common && (inhibit_right || inhibit_left))
-    return;
+	start_or_end_of_anything();
 
   if (user_insert_end)
     fprintf (output_file, "%s", user_insert_end);
@@ -495,6 +499,9 @@ copy_word (SIDE * side, FILE * file)
       if (overstrike)
 	switch (copy_mode)
 	  {
+	  case COPY_NONE:
+	    break;
+
 	  case COPY_NORMAL:
 	    putc (side->character, file);
 	    break;

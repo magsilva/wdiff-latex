@@ -1,0 +1,95 @@
+A modified wdiff
+---
+Author: Marco Aurélio Graciotto Silva <magsilva@gmail.com>
+
+
+Everything started in a blistering october night [1]. Since the week before
+this amazing day, I was thinking about creating an application to create those
+nice looking documents with revision bars. I've never found a good solution for
+this in LaTeX. So, on 13th October 2003, I decided to develop a solution.
+
+The first step was a good search. I found out that LyX has more or less what I
+wanted but LyX isn't LaTeX yet and the output haven't got those revision bar
+(the feature is just for online visualization).  So I discovered wdiff, that
+is like diff but works with "words" granularity. I knew I could hack it to
+use with LaTeX. And, for my surprise, it had some very interesting options,
+like text to add before and after an insertion and removal: just what I
+wanted! A \cbonline there, \cbdeleted here, and that's it.
+
+But of course things couldn't be that smooth. As a real diff, it shows the
+words before and after modification and I desired just the after one. Ok,
+there's an option that could handle that. But, when using this option, the
+before and after text isn't added too! So that was no point to me. So I
+hacked the wdiff's source code. One minor optimization there, two hours to
+discover where the problem was, here we go. Success!
+
+The patch, as found in the repository [2], creates a new copy mode (copy
+mode is the kind of change that was detected and the action to take
+with that change, as set by the wdiff's command line options):
+
+	enum copy_mode {
+	  ...
+	  COPY_NONE            /* do not copy any text */
+	  ...
+	}
+
+A new function was created to set this new copy mode:
+
+	/**
+	 * Common actions at start or end of any other action.
+	 */
+	static void start_or_end_of_anything( void ) {
+	  /* Avoid any emphasis if it would be useless. */
+	  if ( inhibit_common ) {
+	    return;
+	  }
+	  if ( inhibit_right || inhibit_left ) {
+	    copy_mode = COPY_NONE;
+	  }
+	}
+
+This new function is called at the following functions:
+
+	static void start_of_delete(void)
+	static void end_of_delete(void)
+	static void start_of_insert(void)
+	static void end_of_insert(void)
+
+The idea is quite simple. The pager program (used to output the wdiff's
+results, a sort of patch) won't sent letters to the output when the copy_mode
+is set to COPY_NONE:
+
+	static void launch_output_program(void) {
+	  ...
+	     if ( overstrike ) {
+	       switch ( copy_mode ) {
+	         case COPY_NONE:
+	           break;
+
+Now I just have to create a script to automatically grab two LaTeX document,
+run the wdiff and generate the nice revision document. This is the command
+line I used to test:
+
+wdiff resumo.tex resumo-novo.tex \
+	-w "\cbdelete{}" -x "" -y "\cbstart{}" -z "\cbend{}" --no-deleted
+
+Of course there was be some trouble in the way. This approach worked fine for
+clear text but what about LaTeX includes and inputs? I didn't know how I'd
+handle them... but not for so long. In the same day I figured out a "solution":
+
+for i in *.tex; do
+	wdiff $i ../Qualificacao-original/$i \
+		-w "\cbdelete{}" -x "" -y "\cbstart{}" -z "\cbend{}" \
+		--no-deleted > ../Quali/$i;
+done
+
+Although the LaTeX files produced didn't work out of the box, it wasn't
+difficult to correct them manually. I just had to add some option to ignore
+LaTeX commands when creating the diff. Adding \cbdelete{} and \cbstart{} in
+the same line also doesn't look nice. But this is changebar package's fault.
+But the final product was nice, quite useful.
+
+
+[1] http://www.magsilva.dynalias.net/~magsilva/Diary/#20031013
+
+[2] http://www.magsilva.dynalias.net/svn/wdiff

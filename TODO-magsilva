@@ -1,0 +1,5 @@
+- Create script to get different publication's source automatically
+from a CVS or SVN repository, run wdiff and compile the PDF with the
+changes.
+
+- Develop heuristics to detect/avoid conflicting changebar's commands.
